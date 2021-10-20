@@ -2,16 +2,16 @@
 Author: Gerardathletics
 
 This script gets the most extreme values (maximum temperature, minimum temperature, wind gust and precipitation)
-in Spain from Aemet from the previous day.
+in Spain from Aemet from the previous day. 
+The text the bot sends is in spanish.
 
 '''
-
 
 import requests
 from bs4 import BeautifulSoup
 import re
 from config import *
-
+from datetime import datetime, timedelta
 
 url = 'http://www.aemet.es/ca/eltiempo/observacion/ultimosdatos?k=esp&w=2&datos=img'
 response = requests.get(url)
@@ -33,130 +33,65 @@ min_temperature = clean_text(find_minTemp)
 wind = clean_text(find_wind)
 pp = clean_text(find_pp)
 
-# Getting the link of the location to get the coordinates
-link_tmaxpre = soup.findAll('td')[0]
-link_tminpre = soup.findAll('td')[40]
-link_windpre = soup.findAll('td')[120]
-link_pppre = soup.findAll('td')[160]
+# Getting the link of the location to get the coordinates and altitude
+def get_link(index):
+    step1 = soup.findAll('td')[index]
+    step2 = step1.findAll('a')
+    for i in step2:
+        step3 = i.get('href')
+        link = 'http://www.aemet.es/'+step3
+        return link
 
-link_tmaxpre = link_tmaxpre.findAll('a')
-link_tminpre = link_tminpre.findAll('a')
-link_windpre = link_windpre.findAll('a')
-link_pppre = link_pppre.findAll('a')
+link_maxTemp = get_link(0)
+link_minTemp = get_link(40)
+link_wind = get_link(120)
+link_pp = get_link(160)
 
-def create_links(part_link):
-    for link in part_link:
-        link_part1 = link.get('href')
-        link_total = 'http://www.aemet.es/'+link_part1
-        print(link_total)
+# getting the altitude and coordinates of the place
 
+def getinfo(link):
+    resp = requests.get(link)
+    soupCoord = BeautifulSoup(resp.text, 'html.parser')
+    altitude = str(soupCoord.find_all("div", {"class": "notas_tabla"}))
+    altitude = re.findall('(?<=Altitud)(.*?)(?=br)', altitude)
+    altitude = re.findall('\d\d\d\d|\d\d\d|\d\d|\d', altitude[0])
+    altitude = altitude[0]
+    coords = str(soupCoord.findAll('abbr'))
+    coords = re.findall('"[^>=]+"', coords)
+    coords = ",".join(coords)
+    coords = coords.replace('"','').replace('latitude,',' ').replace('longitude,','')
+    return altitude, coords
 
+maxTemp_alt, maxTemp_coords = getinfo(link_maxTemp)
+minTemp_alt, minTemp_coords = getinfo(link_minTemp)
+wind_alt, wind_coords = getinfo(link_wind)
+pp_alt, pp_coords = getinfo(link_pp)
 
-for link in link_tmaxpre:
-    linktmax1 = link.get('href')
-    link_Tmax = 'http://www.aemet.es/'+linktmax1
-    print(link_Tmax)
+# text that will be sent. It includes the meteorological variable, altitude and coordinates.
+maxTemp_text = 'TEMP MAX: ' + max_temperature + 'ºC // ' + 'ALT: ' + maxTemp_alt + 'm // LAT,LON: ' + maxTemp_coords
+minTemp_text = 'TEMP MIN: ' + min_temperature + 'ºC // ' + 'ALT: ' + minTemp_alt + 'm // LAT,LON: ' + minTemp_coords
+wind_text = 'RACHA VIENTO: ' + wind + 'km/h // ' + 'ALT: ' + wind_alt + ' m // LAT,LON: ' + wind_coords
+pp_text = 'PRECIPITACION: ' + pp + 'mm // ' + 'ALT: ' + pp_alt + ' m // LAT,LON: ' + pp_coords
 
-for link in link_tminpre:
-    linktmin1 = link.get('href')
-    link_Tmin = 'http://www.aemet.es/'+linktmin1
-    print(link_Tmin)
-
-for link in link_windpre:
-    linktvent1 = link.get('href')
-    link_Wind = 'http://www.aemet.es/'+linktvent1
-    print(link_Wind)
-
-for link in link_pppre:
-    linktpp1 = link.get('href')
-    link_Pp = 'http://www.aemet.es/'+linktpp1
-    print(link_Pp)
-
-respTmax = requests.get(link_Tmax)
-respTmin = requests.get(link_Tmin)
-respVent = requests.get(link_Wind)
-respPp = requests.get(link_Pp)
-
-soupTmax = BeautifulSoup(respTmax.text, 'html.parser')
-soupTmin = BeautifulSoup(respTmin.text, 'html.parser')
-soupVent = BeautifulSoup(respVent.text, 'html.parser')
-soupPp = BeautifulSoup(respPp.text, 'html.parser')
-
-tmaxalt = str(soupTmax.find_all("div", {"class": "notas_tabla"}))
-tmaxalt = re.findall('(?<=Altitud)(.*?)(?=br)', tmaxalt)
-tmaxalt = re.findall('\d\d\d\d|\d\d\d|\d\d|\d', tmaxalt[0])
-tmaxalt = tmaxalt[0]
-
-tminalt = str(soupTmin.find_all("div", {"class": "notas_tabla"}))
-tminalt = re.findall('(?<=Altitud)(.*?)(?=br)', tminalt)
-tminalt = re.findall('\d\d\d\d|\d\d\d|\d\d|\d', tminalt[0])
-tminalt = tminalt[0]
-
-ventalt = str(soupVent.find_all("div", {"class": "notas_tabla"}))
-ventalt = re.findall('(?<=Altitud)(.*?)(?=br)', ventalt)
-ventalt = re.findall('\d\d\d\d|\d\d\d|\d\d|\d', ventalt[0])
-ventalt = ventalt[0]
-
-ppalt = str(soupPp.find_all("div", {"class": "notas_tabla"}))
-ppalt = re.findall('(?<=Altitud)(.*?)(?=br)', ppalt)
-ppalt = re.findall('\d\d\d\d|\d\d\d|\d\d|\d', ppalt[0])
-ppalt = ppalt[0]
-
-coordTmax = str(soupTmax.findAll('abbr'))
-coordTmax = re.findall('"[^>=]+"', coordTmax)
-coordTmax = ",".join(coordTmax)
-coordTmax = coordTmax.replace('"','').replace('latitude,',' ').replace('longitude,','')
-
-coordTmin = str(soupTmin.findAll('abbr'))
-coordTmin = re.findall('"[^>=]+"', coordTmin)
-coordTmin = ",".join(coordTmin)
-coordTmin = coordTmin.replace('"','').replace('latitude,',' ').replace('longitude,','')
-
-coordVent = str(soupVent.findAll('abbr'))
-coordVent = re.findall('"[^>=]+"', coordVent)
-coordVent = ",".join(coordVent)
-coordVent = coordVent.replace('"','').replace('latitude,',' ').replace('longitude,','')
-
-coordPp = str(soupPp.findAll('abbr'))
-coordPp = re.findall('"[^>=]+"', coordPp)
-coordPp = ",".join(coordPp)
-coordPp = coordPp.replace('"','').replace('latitude,',' ').replace('longitude,','')
-
-tempMax = 'TEMP MAX: ' + max_temperature + ' // ' + 'ALT: ' + tmaxalt + ' // LAT,LON: ' + coordTmax
-tempMin = 'TEMP MIN: ' + min_temperature + ' // ' + 'ALT: ' + tminalt + '// LAT,LON: ' + coordTmin
-vent = 'RACHA VIENTO: ' + wind + ' // ' + 'ALT: ' + ventalt + ' // LAT,LON: ' + coordVent
-pp = 'PRECIPITACION: ' + pp + ' // ' + 'ALT: ' + ppalt + ' // LAT,LON: ' + coordPp
-
-print(tempMax)
-print(tempMin)
-print(vent)
-print(pp)
-
-from datetime import datetime, timedelta
+# Uncomment below if you want the text printed in the console
+# print(maxTemp_text)
+# print(minTemp_text)
+# print(wind_text)
+# print(pp_text)
 
 N_DAYS_AGO = 1
-
 today = datetime.now()
 n_days_ago = today - timedelta(days=N_DAYS_AGO)
 n_days_ago = str(n_days_ago)
-dia = 'DIA: ' + n_days_ago[:11]
+day = 'DIA: ' + n_days_ago[:11]
 
+def send_telegram_message(message):
+    url_req = "https://api.telegram.org/bot" + token + "/sendMessage" + "?chat_id=" + chat_id + "&text=" + message
+    requests.get(url_req)
 
-url_reqdia = "https://api.telegram.org/bot" + token + "/sendMessage" + "?chat_id=" + chat_id + "&text=" + dia
-url_reqtmax = "https://api.telegram.org/bot" + token + "/sendMessage" + "?chat_id=" + chat_id + "&text=" + tempMax
-url_reqtmin = "https://api.telegram.org/bot" + token + "/sendMessage" + "?chat_id=" + chat_id + "&text=" + tempMin
-url_reqvent = "https://api.telegram.org/bot" + token + "/sendMessage" + "?chat_id=" + chat_id + "&text=" + vent
-url_reqpp = "https://api.telegram.org/bot" + token + "/sendMessage" + "?chat_id=" + chat_id + "&text=" + pp
+send_telegram_message(day)
+send_telegram_message(maxTemp_text)
+send_telegram_message(minTemp_text)
+send_telegram_message(wind_text)
+send_telegram_message(pp_text)
 
-resultsdia = requests.get(url_reqdia)
-resultstmax = requests.get(url_reqtmax)
-resultstmin = requests.get(url_reqtmin)
-resultsvent = requests.get(url_reqvent)
-resultspp = requests.get(url_reqpp)
-
-
-print(resultsdia.json())
-print(resultstmax.json())
-print(resultstmin.json())
-print(resultsvent.json())
-print(resultspp.json())
